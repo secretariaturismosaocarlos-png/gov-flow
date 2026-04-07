@@ -2054,16 +2054,13 @@ async function fbAdd(col, data){
 async function fbUpdate(col, fbId, data){
   if(!FIREBASE_ENABLED){
     const arr = col==='tasks'?tasks:col==='giaps'?giaps:col==='compras'?compras:col==='contratos'?contratos:col==='editais'?editais:[];
-    const idx = arr.findIndex(x=>x._fbId===fbId||String(x.id)===String(fbId));
+    const idx = arr.findIndex(x=>x._fbId===String(fbId)||String(x.id)===String(fbId));
     if(idx>=0) arr[idx]={...arr[idx],...data};
     saveLocal(); refreshAll(); return;
   }
   try{
-    // find doc id
-    const snap = await db.collection(col).where('_fbId','==',fbId).limit(1).get();
-    let docId = fbId;
-    if(!snap.empty) docId = snap.docs[0].id;
-    await db.collection(col).doc(docId).set({...data, _ts:Date.now()}, {merge:true});
+    // fbId IS the Firestore doc ID
+    await db.collection(col).doc(String(fbId)).set({...data, _ts:Date.now()}, {merge:true});
   }catch(e){ console.error('fbUpdate',e); showSyncStatus('erro ao atualizar',true); }
 }
 
@@ -2079,7 +2076,7 @@ async function fbDelete(col, fbId){
     saveLocal(); refreshAll(); return;
   }
   try{
-    await db.collection(col).doc(fbId).delete();
+    await db.collection(col).doc(String(fbId)).delete();
   }catch(e){ console.error('fbDelete',e); showSyncStatus('erro ao excluir',true); }
 }
 
@@ -2144,9 +2141,9 @@ function renderTaskTable(){
       <td style="padding:10px 14px"><span class="status ${getStatusClass(t.status)}">${getStatusLabel(t.status)}</span></td>
       <td style="padding:8px 10px;white-space:nowrap">
         <div style="display:flex;gap:3px;align-items:center">
-          ${t.status!=='concluida'?`<button class="btn btn-ghost" style="padding:5px 8px;font-size:12px;color:var(--green-light);border-color:rgba(16,185,129,.2)" onclick="openChecklist(${t.id})" title="Concluir">✓</button>`:''}
-          <button class="btn btn-ghost" style="padding:5px 8px;font-size:12px;color:var(--accent-light);border-color:rgba(59,130,246,.2)" onclick="openEditTask(${t.id})" title="Editar">✎</button>
-          <button class="btn btn-ghost" style="padding:5px 8px;font-size:12px;color:var(--red-light);border-color:rgba(239,68,68,.2)" onclick="openDelete(${t.id})" title="Excluir">✕</button>
+          ${t.status!=='concluida'?`<button class="btn btn-ghost" style="padding:5px 8px;font-size:12px;color:var(--green-light);border-color:rgba(16,185,129,.2)" onclick="openChecklist('${t._fbId||t.id}')" title="Concluir">✓</button>`:''}
+          <button class="btn btn-ghost" style="padding:5px 8px;font-size:12px;color:var(--accent-light);border-color:rgba(59,130,246,.2)" onclick="openEditTask('${t._fbId||t.id}')" title="Editar">✎</button>
+          <button class="btn btn-ghost" style="padding:5px 8px;font-size:12px;color:var(--red-light);border-color:rgba(239,68,68,.2)" onclick="openDelete('${t._fbId||t.id}')" title="Excluir">✕</button>
         </div>
       </td>
     </tr>`).join('');
@@ -2186,7 +2183,7 @@ function renderKanban(){
     if(cnt)cnt.textContent=items.length;
     if(items.length===0){body.innerHTML='<div style="color:var(--text-faint);font-size:12px;text-align:center;padding:20px;opacity:.6">Nenhuma tarefa</div>';return;}
     body.innerHTML=items.map(t=>`
-      <div class="kanban-card" onclick="openEditTask(${t.id||0})" style="cursor:pointer">
+      <div class="kanban-card" onclick="openEditTask('${t._fbId||t.id||0}')" style="cursor:pointer">
         <div style="font-size:13px;font-weight:500;margin-bottom:8px;line-height:1.4">${t.nome}</div>
         <div style="display:flex;gap:6px;flex-wrap:wrap;margin-bottom:6px">
           <span class="tag ${getPrioClass(t.prio)}" style="font-size:10px">${getPrioLabel(t.prio)}</span>
@@ -2199,7 +2196,7 @@ function renderKanban(){
           </div>
           ${deadlineLabel(t.prazo,t.status)}
         </div>
-        ${t.status!=='concluida'?`<div style="margin-top:8px"><button onclick="event.stopPropagation();openChecklist(${t.id||0})" class="btn btn-ghost" style="width:100%;padding:4px;font-size:11px;color:var(--green-light);border-color:rgba(16,185,129,.2)">✓ Concluir</button></div>`:''}
+        ${t.status!=='concluida'?`<div style="margin-top:8px"><button onclick="event.stopPropagation();openChecklist('${t._fbId||t.id||0}')" class="btn btn-ghost" style="width:100%;padding:4px;font-size:11px;color:var(--green-light);border-color:rgba(16,185,129,.2)">✓ Concluir</button></div>`:''}
       </div>`).join('');
   });
 }
@@ -2316,7 +2313,7 @@ function renderHistory(){
 // ===== DELETE TASK =====
 window.openDelete = function openDelete(id){
   deleteTaskId = id;
-  const t = tasks.find(x=>x.id===id||x._fbId===String(id));
+  const t = tasks.find(x=>x._fbId===String(id)||String(x.id)===String(id));
   const el = document.getElementById('delete-task-name');
   if(el) el.textContent = t?t.nome:'';
   document.getElementById('del-motivo').value='';
@@ -2367,7 +2364,7 @@ window.saveTask = async function saveTask(){
 
 // ===== OPEN / EDIT TASK =====
 window.openEditTask = function openEditTask(id){
-  const t = tasks.find(x=>x.id===id||x._fbId===String(id));
+  const t = tasks.find(x=>x._fbId===String(id)||String(x.id)===String(id));
   if(!t) return;
   currentTaskId = id;
   const setVal=(eid,v)=>{const el=document.getElementById(eid);if(el)el.value=v||'';};
@@ -2402,7 +2399,7 @@ window.saveEditTask = async function saveEditTask(){
 // ===== CHECKLIST / CONCLUDE =====
 window.openChecklist = function openChecklist(id){
   currentTaskId = id;
-  const t = tasks.find(x=>x.id===id||x._fbId===String(id));
+  const t = tasks.find(x=>x._fbId===String(id)||String(x.id)===String(id));
   if(!t) return;
   const el=document.getElementById('cl-task-name');
   if(el) el.textContent=t.nome;
@@ -2429,7 +2426,7 @@ window.toggleViaOutro = function toggleViaOutro(){
 window.concludeTask = async function concludeTask(){
   const prov=document.getElementById('cl-prov')?.value.trim();
   if(!prov){ showToast('⚠','Campo obrigatório','Descreva a providência tomada.','rgba(245,158,11,.4)'); return; }
-  const t=tasks.find(x=>x.id===currentTaskId||x._fbId===String(currentTaskId));
+  const t=tasks.find(x=>x._fbId===String(currentTaskId)||String(x.id)===String(currentTaskId));
   if(!t) return;
   const now=new Date(), dataISO=isoFmt(now), dataDisplay=now.toLocaleString('pt-BR');
   const via=document.getElementById('cl-via')?.value;
