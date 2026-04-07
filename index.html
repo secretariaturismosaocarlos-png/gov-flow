@@ -2138,7 +2138,10 @@ function renderTaskTable(){
       <td style="padding:10px 14px"><span class="tag ${getTipoClass(t.tipo)}" style="font-size:10px;white-space:nowrap">${t.tipo||'—'}</span>${t.tipoOutro?`<div style="font-size:10px;color:var(--text-muted);margin-top:2px">${t.tipoOutro}</div>`:''}</td>
       <td style="padding:10px 14px"><span class="tag ${getPrioClass(t.prio)}">${getPrioLabel(t.prio)}</span></td>
       <td style="padding:10px 14px">${deadlineLabel(t.prazo,t.status)}</td>
-      <td style="padding:10px 14px"><span class="status ${getStatusClass(t.status)}">${getStatusLabel(t.status)}</span></td>
+      <td style="padding:10px 14px"><span class="status ${getStatusClass(t.status)}">${getStatusLabel(t.status)}</span>
+        ${t.conclusao?.providencia?`<div style="font-size:10px;color:var(--green-light);margin-top:4px;line-height:1.4;white-space:normal">✅ ${t.conclusao.providencia}</div>`:''}
+        ${t.conclusao?.dataDisplay?`<div style="font-size:10px;color:var(--text-faint);margin-top:2px">${t.conclusao.dataDisplay}</div>`:''}
+      </td>
       <td style="padding:8px 10px;white-space:nowrap">
         <div style="display:flex;gap:3px;align-items:center">
           ${t.status!=='concluida'?`<button class="btn btn-ghost" style="padding:5px 8px;font-size:12px;color:var(--green-light);border-color:rgba(16,185,129,.2)" onclick="openChecklist('${t._fbId||t.id}')" title="Concluir">✓</button>`:''}
