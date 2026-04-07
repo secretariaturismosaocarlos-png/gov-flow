@@ -344,7 +344,7 @@ body{font-family:'DM Sans',sans-serif;background:var(--navy);color:var(--text);m
         <div style="font-size:12px;font-weight:500;color:var(--text)" id="topbar-username">—</div>
         <div style="display:flex;align-items:center;gap:8px">
           <span id="sync-status" style="font-size:10px;color:var(--teal-light)">● aguardando login</span>
-          <button onclick="doLogout()" style="font-size:10px;color:var(--text-faint);background:none;border:none;cursor:pointer;font-family:'DM Sans',sans-serif;padding:0">Trocar usuário</button>
+          <button onclick="doLogout()" style="font-size:11px;color:#fff;background:rgba(239,68,68,.25);border:1px solid rgba(239,68,68,.35);border-radius:6px;cursor:pointer;font-family:'DM Sans',sans-serif;padding:3px 10px;font-weight:500">⏻ Sair</button>
           <button onclick="abrirMinhaSenha()" style="font-size:10px;color:var(--text-muted);background:none;border:none;cursor:pointer;font-family:'DM Sans',sans-serif;padding:0">🔑 Senha</button>
           <button id="btn-admin-senhas" onclick="abrirGerenciarSenhas()" style="display:none;font-size:10px;color:var(--teal-light);background:none;border:none;cursor:pointer;font-family:'DM Sans',sans-serif;padding:0">🔐 Senhas</button>
           <button id="btn-admin-equipe" onclick="abrirGerenciarEquipe()" style="display:none;font-size:10px;color:var(--teal-light);background:none;border:none;cursor:pointer;font-family:'DM Sans',sans-serif;padding:0">👥 Equipe</button>
@@ -764,7 +764,7 @@ body{font-family:'DM Sans',sans-serif;background:var(--navy);color:var(--text);m
       <div class="form-group"><label class="form-label">Nome da Tarefa <span class="req">*</span></label><input class="form-input" id="t-nome" type="text" placeholder="Descreva a tarefa..."></div>
       <div class="form-row">
         <div class="form-group"><label class="form-label">Responsável <span class="req">*</span></label>
-          <select class="form-select" id="t-resp">
+          <select class="form-select resp-select" id="t-resp">
             <option>Fabiana</option><option>Hicaro</option><option>Karina</option><option>Manoel</option>
           </select>
         </div>
@@ -959,6 +959,9 @@ body{font-family:'DM Sans',sans-serif;background:var(--navy);color:var(--text);m
 
 
 
+<!-- Firebase SDK -->
+<script src="https://www.gstatic.com/firebasejs/9.22.0/firebase-app-compat.js"></script>
+<script src="https://www.gstatic.com/firebasejs/9.22.0/firebase-firestore-compat.js"></script>
 <script data-cfasync="false" src="/cdn-cgi/scripts/5c5dd728/cloudflare-static/email-decode.min.js"></script><script>
 
 // ===== PROTEÇÃO DO CÓDIGO-FONTE (apenas admin pode inspecionar) =====
@@ -991,24 +994,19 @@ window.onerror = function(msg, src, line, col, err){
   return false;
 };
 
-// ===== MODO: LOCAL (localStorage) + FIREBASE (quando hospedar no Netlify) =====
-// Para ativar Firebase real: descomente o bloco firebaseConfig abaixo
-// e adicione os scripts do Firebase no <head>
-
-/*
+// ===== FIREBASE ATIVADO =====
 const firebaseConfig = {
-  apiKey: "COLE_SUA_apiKey_AQUI",
-  authDomain: "COLE_SUA_authDomain_AQUI",
-  projectId: "COLE_SEU_projectId_AQUI",
-  storageBucket: "COLE_SEU_storageBucket_AQUI",
-  messagingSenderId: "COLE_SEU_messagingSenderId_AQUI",
-  appId: "COLE_SEU_appId_AQUI"
+  apiKey: "AIzaSyCtRuGwmpSLGvJDTfz_EkW6ZCG1sRggybo",
+  authDomain: "govflow-saocarlos.firebaseapp.com",
+  projectId: "govflow-saocarlos",
+  storageBucket: "govflow-saocarlos.firebasestorage.app",
+  messagingSenderId: "313229706343",
+  appId: "1:313229706343:web:74f6d6fb39af9d558d00c2"
 };
 firebase.initializeApp(firebaseConfig);
 const db = firebase.firestore();
-*/
 
-const FIREBASE_ENABLED = false; // Mude para true quando configurar Firebase
+const FIREBASE_ENABLED = true;
 
 const COL = { tasks:'tasks', giaps:'giaps', compras:'compras', history:'history', dfd:'dfd' };
 
@@ -1683,6 +1681,13 @@ let titleFlashInterval = null;
 // ===== SISTEMA DINÂMICO DE USUÁRIOS =====
 var GF_ADMIN = 'Fabiana'; // único admin imutável
 
+// Verifica se o usuário atual pode ver a tarefa
+function podeVerTarefa(t){
+  if(!currentUser) return true;
+  if(currentUser === GF_ADMIN) return true; // admin vê tudo
+  return t.resp === currentUser || t.criadoPor === currentUser;
+}
+
 // Paleta de gradientes para novos usuários
 var USER_GRADIENTS = [
   'linear-gradient(135deg,#3B82F6,#8B5CF6)',
@@ -1931,7 +1936,7 @@ window.showPage = function showPage(id, btn){
 // ===== MODALS =====
 window.openModal = function openModal(id){
   const el = document.getElementById(id);
-  if(el) el.classList.add('open');
+  if(el){ el.classList.add('open'); populateRespSelects(); }
 };
 window.closeModal = function closeModal(id){
   const el = document.getElementById(id);
@@ -1962,8 +1967,8 @@ function refreshAll(){
   renderHistory();
   renderGiap();
   renderCompras();
-  const atrasadas = tasks.filter(t=>t.status==='atrasada').length;
-  const totalActive = tasks.filter(t=>t.status!=='concluida').length;
+  const atrasadas = tasks.filter(t=>t.status==='atrasada' && podeVerTarefa(t)).length;
+  const totalActive = tasks.filter(t=>t.status!=='concluida' && podeVerTarefa(t)).length;
   const el = document.getElementById('badge-tarefas');
   if(el){ el.textContent = totalActive; el.style.background = atrasadas>0?'var(--red)':'var(--amber)'; el.style.display = totalActive>0?'inline-flex':'none'; }
   if(currentUser){ updateMyTasksBadge(); updateWelcomeCard(); }
@@ -1984,6 +1989,7 @@ function saveLocal(){
     localStorage.setItem('gf_history',  JSON.stringify(history));
     localStorage.setItem('gf_dfd',      JSON.stringify(dfdHistory));
   }catch(e){ console.warn('localStorage error',e); }
+  // Firebase sync is handled by fbAdd/fbUpdate/fbDelete individually
 }
 function loadLocal(){
   try{
@@ -1994,36 +2000,103 @@ function loadLocal(){
     const d=localStorage.getItem('gf_dfd');      if(d) dfdHistory=JSON.parse(d);
   }catch(e){ console.warn('localStorage load error',e); }
 }
-function startFirebaseListeners(){ loadLocal(); refreshAll(); showSyncStatus('local'); }
 function showSyncStatus(msg, isError){
   const el = document.getElementById('sync-status');
   if(!el) return;
-  el.textContent = (isError?'⚠ ':'💾 ')+msg;
+  el.textContent = (isError?'⚠ ':'● ')+msg;
   el.style.color = isError?'var(--red-light)':'var(--teal-light)';
 }
+
+function startFirebaseListeners(){
+  if(!FIREBASE_ENABLED){ loadLocal(); refreshAll(); showSyncStatus('local'); return; }
+  showSyncStatus('conectando...');
+  const cols = [
+    {name:'tasks',    setter: d=>{ tasks=d; }},
+    {name:'giaps',    setter: d=>{ giaps=d; }},
+    {name:'compras',  setter: d=>{ compras=d; }},
+    {name:'history',  setter: d=>{ history=d; }},
+    {name:'dfd',      setter: d=>{ dfdHistory=d; }},
+    {name:'contratos',setter: d=>{ contratos=d; contratoNextId=Math.max(...d.map(c=>Number(c.id)||0),0)+1; }},
+    {name:'editais',  setter: d=>{ editais=d; }},
+  ];
+  let loaded = 0;
+  cols.forEach(({name, setter})=>{
+    db.collection(name).orderBy('_ts','desc').onSnapshot(snap=>{
+      const data = snap.docs.map(d=>({...d.data(), _fbId:d.id}));
+      setter(data);
+      loaded++;
+      if(loaded>=cols.length){ showSyncStatus('sincronizado ✓'); refreshAll(); }
+      else { refreshAll(); }
+    }, err=>{ console.error(name, err); showSyncStatus('erro sync', true); });
+  });
+}
+
 async function fbAdd(col, data){
-  const id = Date.now()+Math.random();
-  const entry = {...data, _fbId:String(id), id};
-  if(col==='tasks')   tasks.unshift(entry);
-  if(col==='giaps')   giaps.unshift(entry);
-  if(col==='compras') compras.unshift(entry);
-  if(col==='history') history.unshift(entry);
-  if(col==='dfd')     dfdHistory.unshift(entry);
-  saveLocal(); refreshAll(); return {id};
+  if(!FIREBASE_ENABLED){
+    const id = Date.now();
+    const entry = {...data, _fbId:String(id), id, _ts:id};
+    if(col==='tasks')    tasks.unshift(entry);
+    if(col==='giaps')    giaps.unshift(entry);
+    if(col==='compras')  compras.unshift(entry);
+    if(col==='history')  history.unshift(entry);
+    if(col==='dfd')      dfdHistory.unshift(entry);
+    if(col==='contratos')contratos.unshift(entry);
+    if(col==='editais')  editais.unshift(entry);
+    saveLocal(); refreshAll(); return {id};
+  }
+  try{
+    const ts = Date.now();
+    const ref = await db.collection(col).add({...data, _ts:ts});
+    return {id:ref.id, _fbId:ref.id};
+  }catch(e){ console.error('fbAdd',e); showSyncStatus('erro ao salvar',true); }
 }
+
 async function fbUpdate(col, fbId, data){
-  const arr = col==='tasks'?tasks:col==='giaps'?giaps:col==='compras'?compras:[];
-  const idx = arr.findIndex(x=>x._fbId===fbId||String(x.id)===String(fbId));
-  if(idx>=0) arr[idx]={...arr[idx],...data};
-  saveLocal(); refreshAll();
+  if(!FIREBASE_ENABLED){
+    const arr = col==='tasks'?tasks:col==='giaps'?giaps:col==='compras'?compras:col==='contratos'?contratos:col==='editais'?editais:[];
+    const idx = arr.findIndex(x=>x._fbId===fbId||String(x.id)===String(fbId));
+    if(idx>=0) arr[idx]={...arr[idx],...data};
+    saveLocal(); refreshAll(); return;
+  }
+  try{
+    // find doc id
+    const snap = await db.collection(col).where('_fbId','==',fbId).limit(1).get();
+    let docId = fbId;
+    if(!snap.empty) docId = snap.docs[0].id;
+    await db.collection(col).doc(docId).set({...data, _ts:Date.now()}, {merge:true});
+  }catch(e){ console.error('fbUpdate',e); showSyncStatus('erro ao atualizar',true); }
 }
+
 async function fbDelete(col, fbId){
-  const filter = arr => arr.filter(x=>x._fbId!==fbId&&String(x.id)!==String(fbId));
-  if(col==='tasks')   tasks=filter(tasks);
-  if(col==='giaps')   giaps=filter(giaps);
-  if(col==='compras') compras=filter(compras);
-  if(col==='dfd')     dfdHistory=filter(dfdHistory);
-  saveLocal(); refreshAll();
+  if(!FIREBASE_ENABLED){
+    const filter = arr => arr.filter(x=>x._fbId!==fbId&&String(x.id)!==String(fbId));
+    if(col==='tasks')    tasks=filter(tasks);
+    if(col==='giaps')    giaps=filter(giaps);
+    if(col==='compras')  compras=filter(compras);
+    if(col==='dfd')      dfdHistory=filter(dfdHistory);
+    if(col==='contratos')contratos=filter(contratos);
+    if(col==='editais')  editais=filter(editais);
+    saveLocal(); refreshAll(); return;
+  }
+  try{
+    await db.collection(col).doc(fbId).delete();
+  }catch(e){ console.error('fbDelete',e); showSyncStatus('erro ao excluir',true); }
+}
+
+// Save to Firebase (for modules that use save functions directly)
+async function fbSaveAll(col, arr){
+  if(!FIREBASE_ENABLED){ saveLocal(); refreshAll(); return; }
+  try{
+    const batch = db.batch();
+    // Delete all and rewrite (simple approach for contratos/editais)
+    const snap = await db.collection(col).get();
+    snap.docs.forEach(d=>batch.delete(d.ref));
+    arr.forEach(item=>{
+      const ref = item._fbId ? db.collection(col).doc(item._fbId) : db.collection(col).doc();
+      batch.set(ref, {...item, _fbId:ref.id, _ts:Date.now()});
+    });
+    await batch.commit();
+  }catch(e){ console.error('fbSaveAll',e); showSyncStatus('erro ao salvar',true); }
 }
 
 // ===== RENDER TASKS TABLE =====
@@ -2031,13 +2104,15 @@ function renderTaskTable(){
   const tbody = document.getElementById('task-table-body');
   if(!tbody) return;
   let filtered = tasks.filter(t=>{
+    if(!podeVerTarefa(t)) return false;
     if(currentFilter!=='todos' && t.status!==currentFilter) return false;
     if(currentTipoFilter && t.tipo!==currentTipoFilter) return false;
     return true;
   });
   const label = document.getElementById('task-count-label');
   if(label) label.textContent = `${filtered.length} tarefa${filtered.length!==1?'s':''}`;
-  const fCounts={todos:tasks.length,pendente:tasks.filter(t=>t.status==='pendente').length,andamento:tasks.filter(t=>t.status==='andamento').length,concluida:tasks.filter(t=>t.status==='concluida').length,atrasada:tasks.filter(t=>t.status==='atrasada').length};
+  const visibleTasks = tasks.filter(podeVerTarefa);
+  const fCounts={todos:visibleTasks.length,pendente:visibleTasks.filter(t=>t.status==='pendente').length,andamento:visibleTasks.filter(t=>t.status==='andamento').length,concluida:visibleTasks.filter(t=>t.status==='concluida').length,atrasada:visibleTasks.filter(t=>t.status==='atrasada').length};
   document.querySelectorAll('#task-filters .filter-btn').forEach(btn=>{
     const f=btn.dataset.filter;if(f&&fCounts[f]!==undefined){
       let badge=btn.querySelector('.fcnt');
@@ -2107,7 +2182,7 @@ function renderKanban(){
     const body=document.getElementById(bodyId);
     const cnt=document.getElementById(cntId);
     if(!body)return;
-    const items=tasks.filter(t=>t.status===status);
+    const items=tasks.filter(t=>t.status===status && podeVerTarefa(t));
     if(cnt)cnt.textContent=items.length;
     if(items.length===0){body.innerHTML='<div style="color:var(--text-faint);font-size:12px;text-align:center;padding:20px;opacity:.6">Nenhuma tarefa</div>';return;}
     body.innerHTML=items.map(t=>`
@@ -3352,6 +3427,7 @@ function loadEditais(){
 }
 function saveEditais(){
   try{localStorage.setItem('gf_editais',JSON.stringify(editais));}catch(e){}
+  if(FIREBASE_ENABLED) fbSaveAll('editais', editais);
 }
 function renderEditais(){
   const tbody=document.getElementById('editais-table-body');if(!tbody)return;
@@ -3493,6 +3569,7 @@ function loadContratos(){
 }
 function saveContratos(){
   try{localStorage.setItem('gf_contratos',JSON.stringify(contratos));}catch(e){}
+  if(FIREBASE_ENABLED) fbSaveAll('contratos', contratos);
 }
 
 // Calcula dias até vencimento baseado na data de HOJE (sempre atualizado)
